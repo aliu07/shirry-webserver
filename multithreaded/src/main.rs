@@ -1,9 +1,9 @@
 use multithreaded::ThreadPool;
 use std::{
     fs,
-    io::{prelude::*, BufReader},
+    io::{BufReader, prelude::*},
     net::{TcpListener, TcpStream},
-    thread,
+    process, thread,
     time::Duration,
 };
 
@@ -16,7 +16,36 @@ use std::{
 //        instead. Then compare its API and robustness to the thread pool we implemented.
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    let address = "127.0.0.1";
+    let port = "7878";
+    let result = TcpListener::bind(format!["{}:{}", address, port]);
+
+    let listener = match result {
+        Ok(binding) => {
+            println!("[INFO] Succesfully bound listener to port {port}");
+            binding
+        }
+        Err(err) => {
+            eprintln!("[ERROR] Failed to bind listener on port {port}: {err}");
+
+            // Let OS handle which port to bind listener to
+            eprintln!("Retrying to bind; letting OS assign port");
+            let retry = TcpListener::bind(format!["{}:0", address]);
+
+            match retry {
+                Ok(binding) => {
+                    let new_port = binding.local_addr().unwrap().port();
+                    println!("Succesfully bound listener to port {new_port}");
+                    binding
+                }
+                Err(err) => {
+                    eprintln!("[ERROR] Failed to bind listener again: {err}; exiting");
+                    process::exit(1);
+                }
+            }
+        }
+    };
+
     let pool = ThreadPool::new(3);
 
     // Shut down after processing 10 requests to test exit logic
