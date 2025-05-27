@@ -7,22 +7,23 @@ use std::{
     time::Duration,
 };
 
+static ADDRESS: &str = "127.0.0.1";
+static DEFAULT_PORT: &str = "7878";
+
 fn main() {
-    let address = "127.0.0.1";
-    let port = "7878";
-    let result = TcpListener::bind(format!["{}:{}", address, port]);
+    let result = TcpListener::bind(format!["{}:{}", ADDRESS, DEFAULT_PORT]);
 
     let listener = match result {
         Ok(binding) => {
-            println!("[INFO] Succesfully bound listener to port {port}");
+            println!("[INFO] Succesfully bound listener to port {DEFAULT_PORT}");
             binding
         }
         Err(err) => {
-            eprintln!("[ERROR] Failed to bind listener on port {port}: {err}");
+            eprintln!("[ERROR] Failed to bind listener on port {DEFAULT_PORT}: {err}");
 
             // Let OS handle which port to bind listener to
             eprintln!("Retrying to bind; letting OS assign port");
-            let retry = TcpListener::bind(format!["{}:0", address]);
+            let retry = TcpListener::bind(format!["{}:0", ADDRESS]);
 
             match retry {
                 Ok(binding) => {
