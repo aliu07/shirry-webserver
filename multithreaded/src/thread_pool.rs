@@ -2,8 +2,8 @@ use super::{Job, worker::Worker};
 use std::sync::{Arc, Mutex, mpsc};
 
 pub struct ThreadPool {
-    // () is the return type of the closure we pass to each worker thread
     workers: Vec<Worker>,
+    // () is the return type of the closure we pass to each worker thread
     sender: Option<mpsc::Sender<Job>>,
 }
 
@@ -36,6 +36,10 @@ impl ThreadPool {
         }
     }
 
+    /// Executes a given job. Wraps the job behind a Box pointer and passes
+    /// the pointer into the channel. On the receiving end, one of the worker
+    /// threads in the thread pool will pick up the pointer, unwrap it, and
+    /// execute the job closure.
     pub fn execute<F>(&self, f: F)
     where
         F: FnOnce() + Send + 'static,
@@ -47,6 +51,42 @@ impl ThreadPool {
 }
 
 impl Drop for ThreadPool {
+    /// Custom `Drop` implementation for `ThreadPool`.
+    ///
+    /// This implementation ensures that the `ThreadPool` is properly shut down
+    /// when it goes out of scope. It performs the following cleanup actions:
+    ///
+    /// 1. Closes the sender side of the channel, which signals the worker threads
+    ///    to stop processing tasks. When the sender is dropped, the channel is closed,
+    ///    causing the receivers in the worker threads to throw errors and halt execution.
+    ///
+    /// 2. Transfers ownership of the thread `JoinHandle` from each worker to the main thread
+    ///    using `drain()`. This allows the main thread to call `join()` on each worker thread,
+    ///    ensuring that all threads complete their execution before the `ThreadPool` is dropped.
+    ///
+    /// # Behavior
+    /// - Each worker thread is shut down gracefully by joining its thread handle.
+    /// - A message is printed to indicate that a worker is being shut down, along with its ID.
+    ///
+    /// # Constraints
+    /// - This implementation assumes that all worker threads are properly initialized and
+    ///   have valid `JoinHandle`s.
+    /// - The `sender` field must be wrapped in an `Option` to allow ownership transfer via `take()`.
+    ///
+    /// # Potential Issues
+    /// - If a worker thread panics during execution, calling `join()` will propagate the panic
+    ///   to the main thread. This implementation uses `unwrap()` on the result of `join()`,
+    ///   which will cause the program to terminate if a worker thread panicked.
+    /// - Dropping the `ThreadPool` while tasks are still being processed may result in incomplete
+    ///   task execution, as the workers will halt when the channel is closed.
+    ///
+    /// # Example
+    /// ```rust
+    /// {
+    ///     let pool = ThreadPool::new(4);
+    ///     // Use the thread pool for tasks...
+    /// } // ThreadPool is dropped here, and all worker threads are shut down.
+    /// ```
     fn drop(&mut self) {
         // When we drop the sender, channel will close. Receivers in worker threads
         // will throw errors causing them to come to a halt.
