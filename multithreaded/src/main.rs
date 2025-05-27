@@ -50,7 +50,10 @@ fn main() {
 
     // Shut down after processing 10 requests to test exit logic
     for stream in listener.incoming().take(10) {
-        let stream = stream.unwrap();
+        let stream = stream.unwrap_or_else(|err| {
+            eprintln!("[ERROR] Failed to fetch next item in stream: {err}");
+            process::exit(1);
+        });
 
         pool.execute(|| handle_connection(stream));
     }
@@ -58,9 +61,22 @@ fn main() {
 
 fn handle_connection(mut stream: TcpStream) {
     let buf_reader = BufReader::new(&stream);
-    let request_line = buf_reader.lines().next().unwrap().unwrap();
 
-    let (status_line, filename) = match &request_line[..] {
+    let request_line = buf_reader.lines().next();
+    // Shadow previous binding
+    let request_line = match request_line {
+        Some(Ok(line)) => line,
+        Some(Err(err)) => {
+            eprintln!("[ERROR] Failed to read request line: {err}");
+            process::exit(1);
+        }
+        None => {
+            eprintln!("[ERROR] No lines found in buffer");
+            process::exit(1);
+        }
+    };
+
+    let (status_line, file_path) = match &request_line[..] {
         "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "../pages/index.html"),
         "GET /sleep HTTP/1.1" => {
             thread::sleep(Duration::from_secs(5));
@@ -69,10 +85,16 @@ fn handle_connection(mut stream: TcpStream) {
         _ => ("HTTP/1.1 404 NOT FOUND", "../pages/404.html"),
     };
 
-    let contents = fs::read_to_string(filename).unwrap();
+    let contents = fs::read_to_string(file_path).unwrap_or_else(|err| {
+        eprintln!("[ERROR] Failed to read file: {err}");
+        process::exit(1);
+    });
     let length = contents.len();
 
     let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
 
-    stream.write_all(response.as_bytes()).unwrap();
+    if let Err(err) = stream.write_all(response.as_bytes()) {
+        eprintln!("[ERROR] Failed to write response: {err}");
+        process::exit(1);
+    };
 }
