@@ -7,13 +7,6 @@ use std::{
     time::Duration,
 };
 
-// We could do more here! If you want to continue enhancing this project, here are some ideas:
-//     1. Add more documentation to ThreadPool and its public methods.
-//     2. Change calls to unwrap to more robust error handling.
-//     3. Use ThreadPool to perform some task other than serving web requests.
-//     4. Find a thread pool crate on crates.io and implement a similar web server using the crate
-//        instead. Then compare its API and robustness to the thread pool we implemented.
-
 fn main() {
     let address = "127.0.0.1";
     let port = "7878";
