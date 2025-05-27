@@ -9,10 +9,9 @@ use std::{
 
 // We could do more here! If you want to continue enhancing this project, here are some ideas:
 //     1. Add more documentation to ThreadPool and its public methods.
-//     2. Add tests of the library’s functionality.
-//     3. Change calls to unwrap to more robust error handling.
-//     4. Use ThreadPool to perform some task other than serving web requests.
-//     5. Find a thread pool crate on crates.io and implement a similar web server using the crate
+//     2. Change calls to unwrap to more robust error handling.
+//     3. Use ThreadPool to perform some task other than serving web requests.
+//     4. Find a thread pool crate on crates.io and implement a similar web server using the crate
 //        instead. Then compare its API and robustness to the thread pool we implemented.
 
 fn main() {
