@@ -62,3 +62,41 @@ impl Drop for ThreadPool {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic]
+    fn thread_pool_panics_on_zero_size() {
+        let _pool = ThreadPool::new(0);
+    }
+
+    #[test]
+    fn init_valid_thread_pool() {
+        let pool = ThreadPool::new(3);
+
+        assert_eq!(pool.workers.len(), 3);
+    }
+
+    #[test]
+    fn thread_pool_executes_jobs_and_exits() {
+        let pool = ThreadPool::new(3);
+        let result = Arc::new(Mutex::new(0));
+
+        for _ in 0..8 {
+            let result = Arc::clone(&result);
+            pool.execute(move || {
+                let mut res = result.lock().unwrap();
+                *res += 1;
+            });
+        }
+
+        // Call drop to join all the threads before asserting final result
+        drop(pool);
+
+        let res = *result.lock().unwrap();
+        assert_eq!(res, 8);
+    }
+}
