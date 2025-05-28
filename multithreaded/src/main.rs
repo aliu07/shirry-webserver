@@ -11,9 +11,43 @@ static ADDRESS: &str = "127.0.0.1";
 static DEFAULT_PORT: &str = "7878";
 
 fn main() {
-    let result = TcpListener::bind(format!["{}:{}", ADDRESS, DEFAULT_PORT]);
+    let listener = bind_listener(ADDRESS, DEFAULT_PORT);
+    let pool = ThreadPool::new(3);
 
-    let listener = match result {
+    // Shut down after processing 10 requests to test exit logic
+    for stream in listener.incoming().take(10) {
+        let stream = stream.unwrap_or_else(|err| {
+            eprintln!("[ERROR] Failed to fetch next item in stream: {err}");
+            process::exit(1);
+        });
+
+        pool.execute(|| handle_connection(stream));
+    }
+}
+
+fn handle_connection(mut stream: TcpStream) {
+    let buf_reader = BufReader::new(&stream);
+
+    let request_line = match buf_reader.lines().next().unwrap_or_else(|| {
+        eprintln!("[ERROR] No lines found in buffer");
+        process::exit(1);
+    }) {
+        Ok(line) => line,
+        Err(err) => {
+            eprintln!("[ERROR] Failed to read request line: {err}");
+            return;
+        }
+    };
+
+    let response = generate_response(&request_line);
+
+    if let Err(err) = stream.write_all(response.as_bytes()) {
+        eprintln!("[ERROR] Failed to write response: {err}");
+    };
+}
+
+fn bind_listener(address: &str, port: &str) -> TcpListener {
+    match TcpListener::bind(format!["{}:{}", address, port]) {
         Ok(binding) => {
             println!("[INFO] Succesfully bound listener to port {DEFAULT_PORT}");
             binding
@@ -37,38 +71,10 @@ fn main() {
                 }
             }
         }
-    };
-
-    let pool = ThreadPool::new(3);
-
-    // Shut down after processing 10 requests to test exit logic
-    for stream in listener.incoming().take(10) {
-        let stream = stream.unwrap_or_else(|err| {
-            eprintln!("[ERROR] Failed to fetch next item in stream: {err}");
-            process::exit(1);
-        });
-
-        pool.execute(|| handle_connection(stream));
     }
 }
 
-fn handle_connection(mut stream: TcpStream) {
-    let buf_reader = BufReader::new(&stream);
-
-    let request_line = buf_reader.lines().next();
-    // Shadow previous binding
-    let request_line = match request_line {
-        Some(Ok(line)) => line,
-        Some(Err(err)) => {
-            eprintln!("[ERROR] Failed to read request line: {err}");
-            process::exit(1);
-        }
-        None => {
-            eprintln!("[ERROR] No lines found in buffer");
-            process::exit(1);
-        }
-    };
-
+fn generate_response(request_line: &str) -> String {
     let (status_line, file_path) = match &request_line[..] {
         "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "../pages/index.html"),
         "GET /sleep HTTP/1.1" => {
@@ -84,10 +90,5 @@ fn handle_connection(mut stream: TcpStream) {
     });
     let length = contents.len();
 
-    let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
-
-    if let Err(err) = stream.write_all(response.as_bytes()) {
-        eprintln!("[ERROR] Failed to write response: {err}");
-        process::exit(1);
-    };
+    format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}")
 }
