@@ -1,30 +1,38 @@
+use futures::future;
 use std::{error::Error, process, time::Duration};
 use tokio::{
     fs,
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
+    task::JoinHandle,
     time,
 };
 
 static ADDRESS: &str = "127.0.0.1";
 static DEFAULT_PORT: &str = "7878";
+static NUM_TASKS: usize = 10;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let listener = bind_listener(ADDRESS, DEFAULT_PORT).await;
+    let mut handles: Vec<JoinHandle<()>> = Vec::with_capacity(NUM_TASKS);
 
-    for i in 0..10 {
+    for i in 0..NUM_TASKS {
         let (stream, address) = listener.accept().await.unwrap_or_else(|err| {
             eprintln!("[ERROR] Failed to fetch next item in stream: {err}");
             process::exit(1);
         });
 
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             println!("[EVENT] Received request {i} on socket address {address}");
 
             handle_connection(stream).await;
         });
+
+        handles.push(handle);
     }
+
+    future::join_all(handles).await;
 
     Ok(())
 }
@@ -82,7 +90,7 @@ async fn generate_response(request_line: &str) -> String {
     let (status_line, file_path) = match &request_line[..] {
         "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "../pages/index.html"),
         "GET /sleep HTTP/1.1" => {
-            time::sleep(Duration::from_secs(22)).await;
+            time::sleep(Duration::from_secs(10)).await;
             ("HTTP/1.1 200 OK", "../pages/sleep.html")
         }
         _ => ("HTTP/1.1 404 NOT FOUND", "../pages/404.html"),
