@@ -6,3 +6,6 @@ This approach relies on multithreading principles to serve requests. A thread po
 
 # Async Approach
 This approach aimed to deliver all the functional features of the multithreading approach, but leveraging async runtimes. Some basic practice with the tokio crate and state handling of async tasks through JoinHandle manipulations.
+
+# Crates Approach
+This approach incorporates web framework crates to compare/contrast the dev experience. It offers a good opportunity to explore some crates (axum, poem, rocket), read docs, and experiment.
